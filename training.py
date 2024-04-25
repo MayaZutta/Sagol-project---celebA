@@ -12,6 +12,8 @@ from config import trainConfig
 from torch.utils.tensorboard import SummaryWriter
 # import torchmetrics
 import torchvision.models as models
+from clearml import Task
+import datetime
 
 torch.manual_seed(42)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -33,7 +35,10 @@ def load_model():
     return model
 
 def train_loop(data_dir, weights_dir, epochs=2):
-
+    
+    # Initialize SummaryWriter
+    writer = SummaryWriter()
+    
     train_dataset = torchvision.datasets.CelebA(data_dir, split="train", target_type=["attr"],
                                                 transform=transforms, download=True)
     val_dataset = torchvision.datasets.CelebA(data_dir, split="valid", target_type=["attr"],
@@ -58,8 +63,8 @@ def train_loop(data_dir, weights_dir, epochs=2):
         epoch_train_loss, epoch_train_acc = [], []
 
         for i, data in enumerate(train_dataloader):
-            if i > 10:
-                break
+            # if i > 10:
+                # break
             inputs = data[0]
             labels = data[1]
             print(labels)
@@ -86,12 +91,17 @@ def train_loop(data_dir, weights_dir, epochs=2):
                     f'[epoch: {epoch + 1}/{epochs},step: {i + 1:5d}/{len(train_dataloader)}] loss: {np.mean(epoch_train_loss):.3f}, acc: {np.mean(epoch_train_acc)}')
         scheduler.step()
 
+        # SummaryWriter
+        writer.add_scalar('Loss/train', np.mean(epoch_train_loss), epoch)
+        writer.add_scalar('Accuracy/train', np.mean(np.array(epoch_train_acc)), epoch)
+        writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch)
 
+        # Model evaluation
         model.eval()
         epoch_val_loss, epoch_val_acc = [], []
         for i, data in enumerate(val_dataloader):
-            if i>10:
-                break
+            # if i > 10:
+                # break
             inputs = data[0]
             labels = data[1]
 
@@ -110,8 +120,12 @@ def train_loop(data_dir, weights_dir, epochs=2):
         torch.save(model, f'{weights_dir}/epoch_{epoch + 1}_loss_{np.round(loss.detach().numpy(), decimals=3)}.pt')
 
         print(f'[epoch: {epoch + 1}/{epochs}] loss: {np.mean(epoch_val_loss):.3f}, acc: {np.mean(epoch_val_acc)}')
-            # writer.add_scalar('Loss/val', np.mean(epoch_val_loss), epoch)
-            # writer.add_scalar('Accuracy/val', np.mean(np.array(epoch_val_acc)), epoch)
+            
+        # SummaryWriter
+        writer.add_scalar('Loss/val', np.mean(epoch_val_loss), epoch)
+        writer.add_scalar('Accuracy/val', np.mean(np.array(epoch_val_acc)), epoch)
+        writer.close()
+
 
 if __name__ == '__main__':
     # this statement (if __name__ == ...) is executed only if the script is run as the main program
@@ -124,6 +138,9 @@ if __name__ == '__main__':
     for dir in [exp_dir, weights_dir]:
         if not os.path.isdir(dir):
             os.mkdir(dir)
+    current_time = datetime.datetime.now()
+    task = Task.init(project_name='training CelebA', task_name=f'Task {current_time.strftime("%m%d_%H%M")}')
+    logger = task.get_logger()
     train_loop(data_dir, weights_dir, conf.epochs)
 
 
