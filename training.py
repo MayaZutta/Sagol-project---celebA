@@ -63,8 +63,8 @@ def train_loop(data_dir, weights_dir, epochs=2):
         epoch_train_loss, epoch_train_acc = [], []
 
         for i, data in enumerate(train_dataloader):
-            if i > 10:
-                break
+            # if i > 10:
+                # break
             inputs = data[0]
             labels = data[1]
             print(labels)
@@ -100,8 +100,8 @@ def train_loop(data_dir, weights_dir, epochs=2):
         model.eval()
         epoch_val_loss, epoch_val_acc = [], []
         for i, data in enumerate(val_dataloader):
-            if i>10:
-                break
+            # if i>10:
+                # break
             inputs = data[0]
             labels = data[1]
 
