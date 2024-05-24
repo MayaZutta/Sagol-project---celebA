@@ -1,0 +1,108 @@
+import torch
+import torchvision
+import torchvision.transforms as tfms
+import numpy as np
+from sklearn.metrics import confusion_matrix
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Define image preprocessing transformations
+image_size = 224
+imagenet_mean = [0.485, 0.456, 0.406]  # mean of the ImageNet dataset for normalizing
+imagenet_std = [0.229, 0.224, 0.225]  # std of the ImageNet dataset for normalizing
+
+mytransforms = tfms.Compose([
+    tfms.Resize((image_size, image_size)),
+    tfms.ToTensor(),
+    tfms.Normalize(imagenet_mean, imagenet_std)
+])
+
+
+# Function to calculate accuracy per feature and confusion matrices for the first X images
+def calculate_accuracy_per_feature_and_confusion_matrix(model, dataset, num_images=1000):
+    feature_names_final = dataset.attr_names[0:40]  # There are only 40 features
+    total_features = len(feature_names_final)
+
+    # Initialize counters for accuracy
+    correct_predictions = np.zeros(total_features)
+    total_predictions = np.zeros(total_features)
+
+    # Initialize confusion matrices
+    confusion_matrices = {feature: np.zeros((2, 2)) for feature in feature_names_final}
+
+    for i in range(num_images):
+        # Load image and target labels
+        img, target = dataset[i]
+        target_labels = (target[0:40] > 0).int().numpy()  # Get first 40 labels and convert to 0/1
+
+        # Preprocess image
+        img = torchvision.transforms.ToPILImage()(img)
+        img = mytransforms(img)
+
+        # Make predictions
+        features = model(img.unsqueeze(0).float())
+        predicted_labels = (features > 0).squeeze().int().detach().numpy()
+
+        # Update accuracy counters and confusion matrices
+        for idx, label in enumerate(feature_names_final):
+            correct_predictions[idx] += (predicted_labels[idx] == target_labels[idx])
+            total_predictions[idx] += 1
+            confusion_matrices[label] += confusion_matrix([target_labels[idx]], [predicted_labels[idx]], labels=[0, 1])
+
+    # Calculate accuracy per feature
+    accuracy_per_feature = {label: correct_predictions[idx] / total_predictions[idx] for idx, label in
+                            enumerate(feature_names_final)}
+
+    return accuracy_per_feature, confusion_matrices
+
+
+# Function to plot confusion matrix
+def plot_confusion_matrix(conf_matrix, feature_name):
+    plt.figure(figsize=(5, 4))
+    sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='Blues', xticklabels=['Predicted 0', 'Predicted 1'],
+                yticklabels=['Actual 0', 'Actual 1'])
+    plt.title(f'Confusion Matrix for {feature_name}')
+    plt.xlabel('Predicted')
+    plt.ylabel('Actual')
+    plt.show()
+
+
+# Function to plot accuracy per feature
+def plot_accuracy_per_feature(accuracy_per_feature):
+    features = list(accuracy_per_feature.keys())
+    accuracies = list(accuracy_per_feature.values())
+
+    plt.figure(figsize=(15, 6))
+    plt.bar(features, accuracies, color='blue')
+    plt.xlabel('Features')
+    plt.ylabel('Accuracy')
+    plt.title('Accuracy per Feature for the First 1000 Images')
+    plt.xticks(rotation=90)
+    plt.ylim(0, 1)
+    plt.show()
+
+# Example usage
+data_dir = r"C:\Users\Owner\Desktop\SagolProject_Galit\CelebA"
+weights_celeba = r"C:\Users\Owner\Desktop\SagolProject_Galit\CelebA\weights\epoch_19_loss_0.256.pt"
+model = torch.load(weights_celeba, map_location=torch.device('cpu'))
+model.eval()
+
+# Load dataset
+dataset = torchvision.datasets.CelebA(data_dir, split='train', target_type=["attr"], transform=mytransforms,
+                                      download=True)
+
+# Calculate accuracy per feature and confusion matrices
+accuracy_per_feature, confusion_matrices = calculate_accuracy_per_feature_and_confusion_matrix(model, dataset,
+                                                                                               num_images=1000)
+
+# Print accuracy per feature
+'''print("Accuracy per feature:")
+for feature, accuracy in accuracy_per_feature.items():
+    print(f"{feature}: {accuracy:.2f}")'''
+
+# Plot accuracy per feature
+plot_accuracy_per_feature(accuracy_per_feature)
+
+# Plot confusion matrix for a specific feature
+'''feature_to_plot = "Smiling"
+plot_confusion_matrix(confusion_matrices[feature_to_plot], feature_to_plot)'''
