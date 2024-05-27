@@ -101,7 +101,7 @@ model.eval()
 
 # Load dataset
 dataset = torchvision.datasets.CelebA(data_dir, split='train', target_type=["attr"], transform=mytransforms,
-                                      download=True)
+                                      download=False)
 
 # Calculate accuracy per feature and confusion matrices
 accuracy_per_feature, confusion_matrices = calculate_accuracy_per_feature_and_confusion_matrix(model, dataset,
